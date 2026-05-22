@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard Irrigation</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { margin:0; font-family:sans-serif; background:#f0f4f8; color:#333; }
+    header { background:#1a6e3c; color:white; padding:1rem 2rem; }
+    header h1 { margin:0; font-size:1.3rem; }
+    .grille { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; padding:1.5rem; }
+    .carte { background:white; border-radius:10px; padding:1.2rem; box-shadow:0 2px 6px rgba(0,0,0,.1); }
+    .carte h2 { margin:0 0 .5rem; font-size:.8rem; color:#888; text-transform:uppercase; }
+    .grande-valeur { font-size:3rem; font-weight:700; color:#1a6e3c; }
+    .alerte { color:#c0392b !important; }
+    .badge { display:inline-block; padding:.3rem .9rem; border-radius:20px; font-size:.8rem; margin-top:.3rem; }
+    .badge-ok   { background:#d4edda; color:#155724; }
+    .badge-warn { background:#f8d7da; color:#721c24; }
+    .section { background:white; margin:0 1.5rem 1.5rem; border-radius:10px; padding:1.2rem; box-shadow:0 2px 6px rgba(0,0,0,.1); }
+    .section h2 { margin:0 0 1rem; font-size:.85rem; color:#888; text-transform:uppercase; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { padding:.5rem .8rem; text-align:left; border-bottom:1px solid #eee; font-size:.85rem; }
+    th { color:#888; font-weight:600; }
+  </style>
+</head>
+<body>
+
+<header><h1>Dashboard Supervision Irrigation</h1></header>
+
+<div class="grille">
+  <div class="carte">
+    <h2>Humidite actuelle</h2>
+    <div class="grande-valeur" id="valeur-humidite">--</div>
+    <div id="badge-alerte"></div>
+  </div>
+  <div class="carte">
+    <h2>Derniere mesure</h2>
+    <div style="font-size:1rem;margin-top:.5rem" id="derniere-date">--</div>
+  </div>
+  <div class="carte">
+    <h2>Statut</h2>
+    <div style="font-size:1rem;margin-top:.5rem;color:#1a6e3c" id="statut">En attente...</div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Graphique en temps reel</h2>
+  <canvas id="graphique" height="90"></canvas>
+</div>
+
+<div class="section">
+  <h2>Historique des mesures</h2>
+  <table>
+    <thead><tr><th>Date</th><th>Humidite</th><th>Etat</th></tr></thead>
+    <tbody id="lignes-tableau"></tbody>
+  </table>
+</div>
+
+<script>
+const graphique = new Chart(document.getElementById("graphique").getContext("2d"), {
+  type: "line",
+  data: {
+    labels: [],
+    datasets: [{
+      label: "Humidite (%)",
+      data: [],
+      borderColor: "#1a6e3c",
+      backgroundColor: "rgba(26,110,60,.08)",
+      tension: 0.4,
+      fill: true
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: { y: { min: 0, max: 100 } }
+  }
+});
+
+async function mettreAJour() {
+  try {
+    const derniere = await (await fetch("/api/latest")).json();
+    if (derniere.humidity !== null) {
+      const h = derniere.humidity;
+      const el = document.getElementById("valeur-humidite");
+      el.textContent = h + "%";
+      el.className = "grande-valeur" + (h < 90 ? " alerte" : "");
+      document.getElementById("derniere-date").textContent = derniere.timestamp;
+      document.getElementById("statut").textContent = "Connecte";
+      const badge = document.getElementById("badge-alerte");
+      badge.innerHTML = h < 90
+        ? '<span class="badge badge-warn">Alerte : sol trop sec !</span>'
+        : '<span class="badge badge-ok">Niveau normal</span>';
+    }
+
+    const historique = await (await fetch("/api/history")).json();
+    graphique.data.labels = historique.map(d => d.timestamp.slice(11, 19));
+    graphique.data.datasets[0].data = historique.map(d => d.humidity);
+    graphique.update();
+
+    const tbody = document.getElementById("lignes-tableau");
+    tbody.innerHTML = "";
+    [...historique].reverse().forEach(d => {
+      const etat = d.humidity < 30
+        ? '<span class="badge badge-warn">Alerte</span>'
+        : '<span class="badge badge-ok">Normal</span>';
+      tbody.innerHTML += `<tr><td>${d.timestamp}</td><td>${d.humidity}%</td><td>${etat}</td></tr>`;
+    });
+  } catch(e) {
+    document.getElementById("statut").textContent = "Erreur de connexion";
+  }
+}
+
+mettreAJour();
+setInterval(mettreAJour, 5000);
+</script>
+</body>
+</html>
