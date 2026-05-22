@@ -85,11 +85,11 @@ async function mettreAJour() {
       const h = derniere.humidity;
       const el = document.getElementById("valeur-humidite");
       el.textContent = h + "%";
-      el.className = "grande-valeur" + (h < 90 ? " alerte" : "");
+      el.className = "grande-valeur" + (h < 30 ? " alerte" : "");
       document.getElementById("derniere-date").textContent = derniere.timestamp;
       document.getElementById("statut").textContent = "Connecte";
       const badge = document.getElementById("badge-alerte");
-      badge.innerHTML = h < 90
+      badge.innerHTML = h < 30
         ? '<span class="badge badge-warn">Alerte : sol trop sec !</span>'
         : '<span class="badge badge-ok">Niveau normal</span>';
     }
